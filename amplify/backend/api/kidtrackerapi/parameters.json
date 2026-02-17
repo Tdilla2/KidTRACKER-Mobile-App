@@ -1,0 +1,11 @@
+{
+  "AppSyncApiName": "kidtrackerapi",
+  "DynamoDBBillingMode": "PAY_PER_REQUEST",
+  "DynamoDBEnableServerSideEncryption": false,
+  "AuthCognitoUserPoolId": {
+    "Fn::GetAtt": [
+      "authkidtrackerauth",
+      "Outputs.UserPoolId"
+    ]
+  }
+}

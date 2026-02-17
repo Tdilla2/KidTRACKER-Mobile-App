@@ -1,0 +1,54 @@
+type Child @model @auth(rules: [{allow: owner}]) {
+  id: ID!
+  name: String!
+  age: Int!
+  classroom: String
+  photo: String
+  parentName: String!
+  parentEmail: String!
+  parentPhone: String
+  parentAddress: String
+  allergies: String
+  medications: String
+  pediatrician: String
+  pediatricianPhone: String
+  emergencyContacts: AWSJSON
+  authorizedPickups: AWSJSON
+}
+type DailyReport @model @auth(rules: [{allow: owner}]) {
+  id: ID!
+  childId: ID! @index(name: "byChild", sortKeyFields: ["date"])
+  date: AWSDate!
+  isCheckedIn: Boolean
+  checkInTime: String
+  checkOutTime: String
+  checkInBy: String
+  breakfastStatus: String
+  lunchStatus: String
+  snackStatus: String
+  napStart: String
+  napEnd: String
+  activities: [String]
+  bathroomNotes: String
+  moodNotes: String
+  teacherNotes: String
+  photos: AWSJSON
+}
+type Meal @model @auth(rules: [{allow: owner}]) {
+  id: ID!
+  childId: ID! @index(name: "byChild")
+  day: String!
+  date: String!
+  breakfast: String
+  lunch: String
+  snack: String
+}
+type Invoice @model @auth(rules: [{allow: owner}]) {
+  id: ID!
+  childId: ID! @index(name: "byChild")
+  invoiceNumber: String!
+  date: String!
+  amount: Float!
+  status: String!
+  dueDate: String!
+}
