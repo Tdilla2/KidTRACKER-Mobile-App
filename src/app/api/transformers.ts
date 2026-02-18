@@ -65,6 +65,7 @@ export function transformChild(
 
   return {
     id: raw.id,
+    daycareId: raw.daycare_id,
     name: `${raw.first_name} ${raw.last_name}`.trim(),
     age: ageFromDob(raw.date_of_birth),
     classroom,
@@ -121,7 +122,8 @@ export function transformDailyReport(
   const childPhotos = photos
     .filter((p) => p.child_id === childId && p.date.startsWith(date))
     .map((p) => ({
-      url: p.photo,
+      id: p.id,
+      url: p.photo ?? "",
       caption: p.caption ?? "",
       time: formatTime(p.uploaded_at) ?? "",
     }));
@@ -234,6 +236,7 @@ export function transformInvoice(raw: RawInvoice): InvoiceData {
     amount: typeof raw.amount === "number" ? raw.amount : parseFloat(raw.amount) || 0,
     status: raw.status ?? "Pending",
     dueDate: raw.due_date ?? raw.date,
+    description: raw.description ?? "",
   };
 }
 

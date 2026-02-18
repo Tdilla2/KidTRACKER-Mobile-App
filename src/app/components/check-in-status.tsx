@@ -1,6 +1,31 @@
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
 import { Badge } from "./ui/badge";
 import type { ChildData, DailyReportData } from "../hooks/useKidTrackerData";
+import { fetchActivityPhoto } from "../api/kidTrackerApi";
+
+/** Lazily loads a single photo by ID from the API. */
+function LazyPhoto({ photoId, caption, className }: { photoId: string; caption: string; className?: string }) {
+  const [src, setSrc] = useState<string>("");
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchActivityPhoto(photoId)
+      .then((data) => {
+        if (!cancelled && data.photo) setSrc(data.photo);
+      })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [photoId]);
+
+  if (loading) {
+    return <div className={`${className} bg-gray-200 animate-pulse`} />;
+  }
+  if (!src) return null;
+  return <img src={src} alt={caption} className={className} />;
+}
 
 interface CheckInStatusProps {
   child: ChildData;
@@ -167,7 +192,10 @@ export default function CheckInStatus({ child, dailyReport }: CheckInStatusProps
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
               {dailyReport.photos.map((photo, i) => (
                 <div key={i} className="relative group cursor-pointer">
-                  <img src={photo.url} alt={photo.caption} className="w-full h-24 object-cover rounded-lg" />
+                  {photo.url
+                    ? <img src={photo.url} alt={photo.caption} className="w-full h-24 object-cover rounded-lg" />
+                    : <LazyPhoto photoId={photo.id} caption={photo.caption} className="w-full h-24 object-cover rounded-lg" />
+                  }
                   <div className="mt-1">
                     <p className="text-gray-900 text-sm">{photo.caption}</p>
                     <p className="text-gray-500 text-xs">{photo.time}</p>

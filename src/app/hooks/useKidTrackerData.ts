@@ -12,7 +12,7 @@ import {
   updateChildApi,
   updateInvoiceApi,
 } from "../api/kidTrackerApi";
-import type { RawChild } from "../api/kidTrackerApi";
+import type { RawChild, RawActivityPhoto } from "../api/kidTrackerApi";
 import {
   transformChild,
   transformDailyReport,
@@ -27,6 +27,7 @@ function today() {
 
 export interface ChildData {
   id: string;
+  daycareId: string;
   name: string;
   age: number;
   classroom: string;
@@ -66,7 +67,7 @@ export interface DailyReportData {
   bathroomNotes: string | null;
   moodNotes: string | null;
   teacherNotes: string | null;
-  photos: { url: string; caption: string; time: string }[];
+  photos: { id: string; url: string; caption: string; time: string }[];
 }
 
 export interface MealData {
@@ -86,6 +87,7 @@ export interface InvoiceData {
   amount: number;
   status: string;
   dueDate: string;
+  description: string;
 }
 
 const POLL_INTERVAL_MS = 30_000; // refresh every 30 seconds
@@ -98,9 +100,9 @@ export function useKidTrackerData(
   // All children linked to this parent
   const [children, setChildren] = useState<ChildData[]>([]);
   const [selectedIndex, setSelectedIndex] = useState(0);
-  const [daycareName, setDaycareName] = useState<string>("");
+  const [daycareNames, setDaycareNames] = useState<Map<string, string>>(new Map());
   const [dailyReports, setDailyReports] = useState<Map<string, DailyReportData | null>>(new Map());
-  const [meals, setMeals] = useState<MealData[]>([]);
+  const [mealsByDaycare, setMealsByDaycare] = useState<Map<string, MealData[]>>(new Map());
   const [allInvoices, setAllInvoices] = useState<InvoiceData[]>([]);
   const [loading, setLoading] = useState(!skip);
   const [refreshing, setRefreshing] = useState(false);
@@ -163,15 +165,15 @@ export function useKidTrackerData(
         return;
       }
 
-      const daycare = allDaycares.find((d) => d.id === effectiveDaycareId);
-      setDaycareName(daycare?.name ?? "");
+      // Build a map of daycare names for all daycares the children belong to
+      const daycareNameMap = new Map<string, string>();
+      for (const d of allDaycares) {
+        daycareNameMap.set(d.id, d.name);
+      }
+      setDaycareNames(daycareNameMap);
 
-      const daycareClassrooms = allClassrooms.filter(
-        (c) => c.daycare_id === effectiveDaycareId
-      );
-
-      // Transform ALL children
-      const childDataList = myChildren.map((rc) => transformChild(rc, daycareClassrooms));
+      // Use ALL classrooms so children at different daycares get correct classroom names
+      const childDataList = myChildren.map((rc) => transformChild(rc, allClassrooms));
       setChildren(childDataList);
       rawChildIdsRef.current = myChildren.map((c) => c.id);
 
@@ -183,7 +185,7 @@ export function useKidTrackerData(
       const [allAttendance, allActivities, allPhotos] = await Promise.all([
         fetchAttendance(),
         fetchDailyActivities(),
-        fetchActivityPhotos(),
+        fetchActivityPhotos().catch(() => [] as RawActivityPhoto[]),
       ]);
 
       const reportsMap = new Map<string, DailyReportData | null>();
@@ -195,9 +197,14 @@ export function useKidTrackerData(
       }
       setDailyReports(reportsMap);
 
-      // 3. Fetch meal menus for this daycare
+      // 3. Fetch meal menus for ALL daycares the children belong to
       const rawMenus = await fetchMealMenus();
-      setMeals(transformMealMenus(rawMenus, effectiveDaycareId));
+      const childDaycareIds = new Set(myChildren.map((c) => c.daycare_id));
+      const mealsMap = new Map<string, MealData[]>();
+      for (const dcId of childDaycareIds) {
+        mealsMap.set(dcId, transformMealMenus(rawMenus, dcId));
+      }
+      setMealsByDaycare(mealsMap);
 
       // 4. Fetch invoices for ALL linked children
       const rawInvoices = await fetchInvoices();
@@ -240,6 +247,9 @@ export function useKidTrackerData(
   const child = children[selectedIndex] ?? null;
   const rawChildId = rawChildIdsRef.current[selectedIndex] ?? "";
   const dailyReport = dailyReports.get(rawChildId) ?? null;
+  // Use the selected child's daycare for meals and daycare name
+  const daycareName = child ? (daycareNames.get(child.daycareId) ?? "") : "";
+  const meals = child ? (mealsByDaycare.get(child.daycareId) ?? []) : [];
   // Filter invoices by selected child's ID
   const selectedInvoices = rawChildId
     ? allInvoices.filter((inv) => inv.childId === rawChildId)

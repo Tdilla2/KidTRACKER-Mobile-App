@@ -7,6 +7,7 @@ function today() {
 
 const DEMO_CHILD: ChildData = {
   id: "demo-child-001",
+  daycareId: "demo-daycare-001",
   name: "Emma Johnson",
   age: 4,
   classroom: "Sunshine Room",
@@ -63,9 +64,9 @@ const DEMO_MEALS: MealData[] = [
 ];
 
 const DEMO_INVOICES: InvoiceData[] = [
-  { id: "inv1", childId: "demo-child-001", invoiceNumber: "INV-2026-001", date: "2026-01-01", amount: 1200, status: "Paid", dueDate: "2026-01-15" },
-  { id: "inv2", childId: "demo-child-001", invoiceNumber: "INV-2026-002", date: "2026-02-01", amount: 1200, status: "Pending", dueDate: "2026-02-15" },
-  { id: "inv3", childId: "demo-child-001", invoiceNumber: "INV-2025-012", date: "2025-12-01", amount: 1200, status: "Paid", dueDate: "2025-12-15" },
+  { id: "inv1", childId: "demo-child-001", invoiceNumber: "INV-2026-001", date: "2026-01-01", amount: 1200, status: "Paid", dueDate: "2026-01-15", description: "Monthly Tuition: $1200.00" },
+  { id: "inv2", childId: "demo-child-001", invoiceNumber: "INV-2026-002", date: "2026-02-01", amount: 1200, status: "Pending", dueDate: "2026-02-15", description: "Monthly Tuition: $1200.00" },
+  { id: "inv3", childId: "demo-child-001", invoiceNumber: "INV-2025-012", date: "2025-12-01", amount: 1200, status: "Paid", dueDate: "2025-12-15", description: "Monthly Tuition: $1200.00" },
 ];
 
 export function useDemoData() {

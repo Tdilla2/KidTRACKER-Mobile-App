@@ -6,6 +6,21 @@ import { Separator } from "./ui/separator";
 import { Button } from "./ui/button";
 import type { ChildData, InvoiceData } from "../hooks/useKidTrackerData";
 
+/** Parse an invoice description like "Monthly Tuition: $350.00, Registration Fee: $250.00"
+ *  into an array of { label, amount } line items. */
+function parseLineItems(description: string): { label: string; amount: string }[] {
+  if (!description) return [];
+  return description.split(",").map((part) => {
+    const trimmed = part.trim();
+    const colonIdx = trimmed.lastIndexOf(":");
+    if (colonIdx === -1) return { label: trimmed, amount: "" };
+    return {
+      label: trimmed.slice(0, colonIdx).trim(),
+      amount: trimmed.slice(colonIdx + 1).trim(),
+    };
+  });
+}
+
 interface InvoicesTabProps {
   child: ChildData;
   invoices: InvoiceData[];
@@ -137,10 +152,19 @@ export default function InvoicesTab({ child, invoices, onPayInvoice }: InvoicesT
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <div className="flex justify-between">
-                <span className="text-gray-600">Weekly Tuition</span>
-                <span className="text-gray-900">${pendingInvoice.amount.toFixed(2)}</span>
-              </div>
+              {parseLineItems(pendingInvoice.description).length > 0 ? (
+                parseLineItems(pendingInvoice.description).map((item, i) => (
+                  <div key={i} className="flex justify-between">
+                    <span className="text-gray-600">{item.label}</span>
+                    <span className="text-gray-900">{item.amount}</span>
+                  </div>
+                ))
+              ) : (
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Tuition</span>
+                  <span className="text-gray-900">${pendingInvoice.amount.toFixed(2)}</span>
+                </div>
+              )}
             </div>
 
             <Separator />
@@ -216,34 +240,58 @@ export default function InvoicesTab({ child, invoices, onPayInvoice }: InvoicesT
           ) : (
             <div className="space-y-3">
               {paySuccess && pendingInvoice && (
-                <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                  <div>
-                    <p className="text-gray-900">{pendingInvoice.invoiceNumber}</p>
-                    <p className="text-gray-500">{new Date().toISOString().split("T")[0]}</p>
+                <div className="p-3 bg-gray-50 rounded-lg">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-gray-900">{pendingInvoice.invoiceNumber}</p>
+                      <p className="text-gray-500 text-sm">{new Date().toISOString().split("T")[0]}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-gray-900 font-medium">${pendingInvoice.amount.toFixed(2)}</p>
+                      <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                        Paid
+                      </Badge>
+                    </div>
                   </div>
-                  <div className="text-right">
-                    <p className="text-gray-900">${pendingInvoice.amount.toFixed(2)}</p>
-                    <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-                      Paid
-                    </Badge>
-                  </div>
+                  {pendingInvoice.description && (
+                    <div className="mt-2 pt-2 border-t border-gray-200 space-y-1">
+                      {parseLineItems(pendingInvoice.description).map((item, i) => (
+                        <div key={i} className="flex justify-between text-sm">
+                          <span className="text-gray-500">{item.label}</span>
+                          <span className="text-gray-600">{item.amount}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
               {paidInvoices.map((invoice) => (
                 <div
                   key={invoice.id}
-                  className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer"
+                  className="p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
                 >
-                  <div>
-                    <p className="text-gray-900">{invoice.invoiceNumber}</p>
-                    <p className="text-gray-500">{invoice.date}</p>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-gray-900">{invoice.invoiceNumber}</p>
+                      <p className="text-gray-500 text-sm">{invoice.date}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-gray-900 font-medium">${invoice.amount.toFixed(2)}</p>
+                      <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                        {invoice.status}
+                      </Badge>
+                    </div>
                   </div>
-                  <div className="text-right">
-                    <p className="text-gray-900">${invoice.amount.toFixed(2)}</p>
-                    <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-                      {invoice.status}
-                    </Badge>
-                  </div>
+                  {invoice.description && (
+                    <div className="mt-2 pt-2 border-t border-gray-200 space-y-1">
+                      {parseLineItems(invoice.description).map((item, i) => (
+                        <div key={i} className="flex justify-between text-sm">
+                          <span className="text-gray-500">{item.label}</span>
+                          <span className="text-gray-600">{item.amount}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               ))}
             </div>

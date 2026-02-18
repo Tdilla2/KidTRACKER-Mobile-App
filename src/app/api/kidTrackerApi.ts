@@ -90,11 +90,15 @@ export interface RawActivityPhoto {
   id: string;
   child_id: string;
   date: string;
-  photo: string;
+  photo?: string;
   caption: string | null;
   uploaded_at: string | null;
   daycare_id: string;
 }
+
+/** Fetch a single activity photo's full data (including base64 photo). */
+export const fetchActivityPhoto = (id: string) =>
+  fetchJSON<RawActivityPhoto>(`/activity_photos/${id}`);
 
 export interface RawMealMenu {
   id: string;
