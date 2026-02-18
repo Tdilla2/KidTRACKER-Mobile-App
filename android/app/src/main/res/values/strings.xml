@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">KidTRACKER</string>
-    <string name="title_activity_main">KidTRACKER</string>
-    <string name="package_name">com.example.kidtracker</string>
-    <string name="custom_url_scheme">com.example.kidtracker</string>
+    <string name="app_name">KidTRACKERApp</string>
+    <string name="title_activity_main">KidTRACKERApp</string>
+    <string name="package_name">com.kidtrackerapp.mobile</string>
+    <string name="custom_url_scheme">com.kidtrackerapp.mobile</string>
 </resources>

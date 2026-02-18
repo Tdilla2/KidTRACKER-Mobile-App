@@ -1,5 +1,5 @@
 {
-  "appId": "com.example.kidtracker",
-  "appName": "KidTRACKER",
+  "appId": "com.kidtrackerapp.mobile",
+  "appName": "KidTRACKERApp",
   "webDir": "dist"
 }

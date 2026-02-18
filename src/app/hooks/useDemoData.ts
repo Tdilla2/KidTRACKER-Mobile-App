@@ -28,13 +28,17 @@ const DEMO_CHILD: ChildData = {
     { name: "Linda Torres", relationship: "Grandmother" },
     { name: "James Johnson", relationship: "Uncle" },
   ],
+  recurringCharges: [{ amount: 1200, description: "Monthly Tuition" }],
 };
 
 const DEMO_DAILY_REPORT: DailyReportData = {
   id: "demo-report-001",
   childId: "demo-child-001",
   date: today(),
+  attendanceStatus: "checked_in",
   isCheckedIn: true,
+  isCheckedOut: false,
+  isAbsent: false,
   checkInTime: "8:15 AM",
   checkOutTime: null,
   checkInBy: "Sarah Johnson",
@@ -59,19 +63,24 @@ const DEMO_MEALS: MealData[] = [
 ];
 
 const DEMO_INVOICES: InvoiceData[] = [
-  { id: "inv1", invoiceNumber: "INV-2026-001", date: "2026-01-01", amount: 1200, status: "Paid", dueDate: "2026-01-15" },
-  { id: "inv2", invoiceNumber: "INV-2026-002", date: "2026-02-01", amount: 1200, status: "Pending", dueDate: "2026-02-15" },
-  { id: "inv3", invoiceNumber: "INV-2025-012", date: "2025-12-01", amount: 1200, status: "Paid", dueDate: "2025-12-15" },
+  { id: "inv1", childId: "demo-child-001", invoiceNumber: "INV-2026-001", date: "2026-01-01", amount: 1200, status: "Paid", dueDate: "2026-01-15" },
+  { id: "inv2", childId: "demo-child-001", invoiceNumber: "INV-2026-002", date: "2026-02-01", amount: 1200, status: "Pending", dueDate: "2026-02-15" },
+  { id: "inv3", childId: "demo-child-001", invoiceNumber: "INV-2025-012", date: "2025-12-01", amount: 1200, status: "Paid", dueDate: "2025-12-15" },
 ];
 
 export function useDemoData() {
-  const [child, setChild] = useState<ChildData>(DEMO_CHILD);
+  const [children, setChildren] = useState<ChildData[]>([DEMO_CHILD]);
+  const [selectedIndex, setSelectedIndex] = useState(0);
   const [dailyReport] = useState<DailyReportData>(DEMO_DAILY_REPORT);
   const [meals] = useState<MealData[]>(DEMO_MEALS);
   const [invoices, setInvoices] = useState<InvoiceData[]>(DEMO_INVOICES);
 
+  const child = children[selectedIndex] ?? null;
+
   const updateChildProfile = async (updates: Partial<ChildData>) => {
-    setChild((prev) => ({ ...prev, ...updates }));
+    setChildren((prev) =>
+      prev.map((c, i) => (i === selectedIndex ? { ...c, ...updates } : c))
+    );
   };
 
   const createReport = async () => {
@@ -88,11 +97,17 @@ export function useDemoData() {
 
   return {
     child,
+    children,
+    selectedIndex,
+    selectChild: setSelectedIndex,
+    daycareName: "Sunshine Daycare Center",
     dailyReport,
     meals,
     invoices,
     loading: false,
+    refreshing: false,
     error: null,
+    lastUpdated: new Date(),
     updateChildProfile,
     createReport,
     payInvoice,

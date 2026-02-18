@@ -79,6 +79,7 @@ export function transformChild(
     pediatricianPhone: "",
     emergencyContacts,
     authorizedPickups,
+    recurringCharges: raw.recurring_charges ?? [],
   };
 }
 
@@ -131,11 +132,28 @@ export function transformDailyReport(
       ? act.bathroom_times.join(", ")
       : null;
 
+  // Derive attendance status from the combination of status + check_in + check_out
+  // Dashboard sets status="present" for both check-in and check-out,
+  // so we must look at check_out to distinguish them.
+  const rawStatus = att?.status ?? "";
+  const hasCheckIn = !!att?.check_in;
+  const hasCheckOut = !!att?.check_out;
+
+  let attendanceStatus: "checked_in" | "checked_out" | "absent" | "none" = "none";
+  if (rawStatus === "absent") {
+    attendanceStatus = "absent";
+  } else if ((rawStatus === "present" || rawStatus === "checked_in") && hasCheckIn) {
+    attendanceStatus = hasCheckOut ? "checked_out" : "checked_in";
+  }
+
   return {
     id: att?.id ?? act?.id ?? `${childId}-${date}`,
     childId,
     date,
-    isCheckedIn: att?.status === "checked_in" || att?.status === "present",
+    attendanceStatus,
+    isCheckedIn: attendanceStatus === "checked_in",
+    isCheckedOut: attendanceStatus === "checked_out",
+    isAbsent: attendanceStatus === "absent",
     checkInTime: formatTime(att?.check_in ?? null),
     checkOutTime: formatTime(att?.check_out ?? null),
     checkInBy: null,
@@ -210,8 +228,9 @@ export function transformMealMenus(
 export function transformInvoice(raw: RawInvoice): InvoiceData {
   return {
     id: raw.id,
+    childId: raw.child_id,
     invoiceNumber: raw.invoice_number ?? `INV-${raw.id.slice(0, 8)}`,
-    date: raw.date,
+    date: raw.date ?? raw.created_at ?? "",
     amount: typeof raw.amount === "number" ? raw.amount : parseFloat(raw.amount) || 0,
     status: raw.status ?? "Pending",
     dueDate: raw.due_date ?? raw.date,

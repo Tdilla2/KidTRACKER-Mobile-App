@@ -39,6 +39,7 @@ function stripModuleAttrs(): import('vite').Plugin {
   return {
     name: 'strip-module-attrs',
     enforce: 'post',
+    apply: 'build',
     transformIndexHtml(html) {
       return html
         .replace(/ type="module"/g, ' defer')

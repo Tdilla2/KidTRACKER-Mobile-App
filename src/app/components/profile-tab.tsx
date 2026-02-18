@@ -1,80 +1,13 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
-import { useState } from "react";
-import { Button } from "./ui/button";
-import { Input } from "./ui/input";
 import type { ChildData } from "../hooks/useKidTrackerData";
 
 interface ProfileTabProps {
   child: ChildData;
-  onUpdateProfile: (updates: Partial<ChildData>) => Promise<void>;
 }
 
-export default function ProfileTab({ child, onUpdateProfile }: ProfileTabProps) {
-  const [isEditing, setIsEditing] = useState(false);
-  const [saving, setSaving] = useState(false);
-
-  // Editable parent fields
-  const [parentName, setParentName] = useState(child.parentName);
-  const [parentPhone, setParentPhone] = useState(child.parentPhone);
-  const [parentAddress, setParentAddress] = useState(child.parentAddress);
-
-  // Editable child fields
-  const [childName, setChildName] = useState(child.name);
-  const [childAge, setChildAge] = useState(child.age.toString());
-  const [childClassroom, setChildClassroom] = useState(child.classroom);
-
-  const handleSave = async () => {
-    setSaving(true);
-    try {
-      await onUpdateProfile({
-        parentName,
-        parentPhone,
-        parentAddress,
-        name: childName,
-        age: parseInt(childAge),
-        classroom: childClassroom,
-      });
-      setIsEditing(false);
-    } catch {
-      alert("Failed to save profile. Please try again.");
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleCancel = () => {
-    setParentName(child.parentName);
-    setParentPhone(child.parentPhone);
-    setParentAddress(child.parentAddress);
-    setChildName(child.name);
-    setChildAge(child.age.toString());
-    setChildClassroom(child.classroom);
-    setIsEditing(false);
-  };
-
+export default function ProfileTab({ child }: ProfileTabProps) {
   return (
     <div className="space-y-4">
-      {/* Save/Cancel Buttons */}
-      {isEditing && (
-        <div className="bg-white border border-gray-200 rounded-lg p-4 sticky top-0 z-10 shadow-sm">
-          <div className="flex items-center justify-between">
-            <p className="text-gray-700">You have unsaved changes</p>
-            <div className="flex space-x-2">
-              <Button variant="outline" onClick={handleCancel} disabled={saving}>
-                Cancel
-              </Button>
-              <Button
-                onClick={handleSave}
-                disabled={saving}
-                className="bg-blue-600 hover:bg-blue-700 text-white"
-              >
-                {saving ? "Saving..." : "Save Changes"}
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Parent Information */}
       <Card>
         <CardHeader>
@@ -83,34 +16,20 @@ export default function ProfileTab({ child, onUpdateProfile }: ProfileTabProps) 
         </CardHeader>
         <CardContent className="space-y-4">
           <div>
-            <p className="text-gray-500 mb-1">Full Name</p>
-            <Input
-              value={parentName}
-              onChange={(e) => { setParentName(e.target.value); setIsEditing(true); }}
-              className="mt-1"
-            />
+            <p className="text-gray-500 text-sm mb-1">Full Name</p>
+            <p className="text-gray-900">{child.parentName || "—"}</p>
           </div>
           <div>
-            <p className="text-gray-500 mb-1">Email Address</p>
-            <Input type="email" value={child.parentEmail} disabled className="mt-1 bg-gray-50" />
-            <p className="text-xs text-gray-400 mt-1">Email is managed through your account settings</p>
+            <p className="text-gray-500 text-sm mb-1">Email Address</p>
+            <p className="text-gray-900">{child.parentEmail || "—"}</p>
           </div>
           <div>
-            <p className="text-gray-500 mb-1">Phone Number</p>
-            <Input
-              type="tel"
-              value={parentPhone}
-              onChange={(e) => { setParentPhone(e.target.value); setIsEditing(true); }}
-              className="mt-1"
-            />
+            <p className="text-gray-500 text-sm mb-1">Phone Number</p>
+            <p className="text-gray-900">{child.parentPhone || "—"}</p>
           </div>
           <div>
-            <p className="text-gray-500 mb-1">Address</p>
-            <Input
-              value={parentAddress}
-              onChange={(e) => { setParentAddress(e.target.value); setIsEditing(true); }}
-              className="mt-1"
-            />
+            <p className="text-gray-500 text-sm mb-1">Address</p>
+            <p className="text-gray-900">{child.parentAddress || "—"}</p>
           </div>
         </CardContent>
       </Card>
@@ -131,36 +50,21 @@ export default function ProfileTab({ child, onUpdateProfile }: ProfileTabProps) 
               </div>
             )}
             <div>
-              <p className="text-gray-900">{childName}</p>
-              <p className="text-gray-500">{childClassroom}</p>
+              <p className="text-gray-900">{child.name}</p>
+              <p className="text-gray-500">{child.classroom}</p>
             </div>
           </div>
           <div>
-            <p className="text-gray-500 mb-1">Child's Full Name</p>
-            <Input
-              value={childName}
-              onChange={(e) => { setChildName(e.target.value); setIsEditing(true); }}
-              className="mt-1"
-            />
+            <p className="text-gray-500 text-sm mb-1">Child's Full Name</p>
+            <p className="text-gray-900">{child.name}</p>
           </div>
           <div>
-            <p className="text-gray-500 mb-1">Age (years)</p>
-            <Input
-              type="number"
-              value={childAge}
-              onChange={(e) => { setChildAge(e.target.value); setIsEditing(true); }}
-              className="mt-1"
-              min="0"
-              max="12"
-            />
+            <p className="text-gray-500 text-sm mb-1">Age</p>
+            <p className="text-gray-900">{child.age} years</p>
           </div>
           <div>
-            <p className="text-gray-500 mb-1">Classroom</p>
-            <Input
-              value={childClassroom}
-              onChange={(e) => { setChildClassroom(e.target.value); setIsEditing(true); }}
-              className="mt-1"
-            />
+            <p className="text-gray-500 text-sm mb-1">Classroom</p>
+            <p className="text-gray-900">{child.classroom}</p>
           </div>
         </CardContent>
       </Card>
@@ -219,15 +123,15 @@ export default function ProfileTab({ child, onUpdateProfile }: ProfileTabProps) 
         </CardHeader>
         <CardContent className="space-y-4">
           <div>
-            <p className="text-gray-500 mb-1">Allergies</p>
+            <p className="text-gray-500 text-sm mb-1">Allergies</p>
             <p className="text-gray-900">{child.allergies || "None reported"}</p>
           </div>
           <div>
-            <p className="text-gray-500 mb-1">Medications</p>
+            <p className="text-gray-500 text-sm mb-1">Medications</p>
             <p className="text-gray-900">{child.medications || "None"}</p>
           </div>
           <div>
-            <p className="text-gray-500 mb-1">Pediatrician</p>
+            <p className="text-gray-500 text-sm mb-1">Pediatrician</p>
             <p className="text-gray-900">{child.pediatrician || "Not specified"}</p>
             {child.pediatricianPhone && (
               <p className="text-gray-500">{child.pediatricianPhone}</p>

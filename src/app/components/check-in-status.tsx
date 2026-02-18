@@ -8,7 +8,21 @@ interface CheckInStatusProps {
 }
 
 export default function CheckInStatus({ child, dailyReport }: CheckInStatusProps) {
-  const isCheckedIn = dailyReport?.isCheckedIn ?? false;
+  const status = dailyReport?.attendanceStatus ?? "none";
+  // "checked_in" = present and not yet picked up
+  // "checked_out" = was here, has been picked up
+  // "absent" = marked absent by daycare
+  // "none" = no attendance record at all
+
+  const badgeConfig = {
+    checked_in: { label: "Checked In", variant: "default" as const, className: "bg-green-100 text-green-700 border-green-200" },
+    checked_out: { label: "Checked Out", variant: "default" as const, className: "bg-blue-100 text-blue-700 border-blue-200" },
+    absent: { label: "Absent", variant: "destructive" as const, className: "bg-red-100 text-red-700 border-red-200" },
+    none: { label: "Absent", variant: "destructive" as const, className: "bg-red-100 text-red-700 border-red-200" },
+  };
+
+  const badge = badgeConfig[status];
+  const hasAttendance = status === "checked_in" || status === "checked_out";
 
   return (
     <div className="space-y-4">
@@ -44,14 +58,15 @@ export default function CheckInStatus({ child, dailyReport }: CheckInStatusProps
         <CardHeader>
           <div className="flex items-center justify-between">
             <CardTitle>Check-In Status</CardTitle>
-            <Badge variant={isCheckedIn ? "default" : "secondary"}>
-              {isCheckedIn ? "Checked In" : "Not Checked In"}
+            <Badge variant={badge.variant} className={badge.className}>
+              {badge.label}
             </Badge>
           </div>
           <CardDescription>Today, {new Date().toLocaleDateString()}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {isCheckedIn && dailyReport && (
+          {/* Checked In - still at daycare */}
+          {status === "checked_in" && dailyReport && (
             <>
               <div className="flex items-center justify-between p-3 bg-green-50 rounded-lg">
                 <div className="flex items-center space-x-3">
@@ -76,7 +91,7 @@ export default function CheckInStatus({ child, dailyReport }: CheckInStatusProps
                   </div>
                   <div>
                     <p className="text-gray-900">Check-Out Time</p>
-                    <p className="text-gray-500">{dailyReport.checkOutTime || "Not checked out yet"}</p>
+                    <p className="text-gray-500">Not checked out yet</p>
                   </div>
                 </div>
               </div>
@@ -89,12 +104,53 @@ export default function CheckInStatus({ child, dailyReport }: CheckInStatusProps
             </>
           )}
 
-          {!isCheckedIn && (
+          {/* Checked Out - was here, now picked up */}
+          {status === "checked_out" && dailyReport && (
+            <>
+              <div className="flex items-center justify-between p-3 bg-green-50 rounded-lg">
+                <div className="flex items-center space-x-3">
+                  <div className="w-10 h-10 bg-green-500 rounded-full flex items-center justify-center">
+                    <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                  <div>
+                    <p className="text-gray-900">Check-In Time</p>
+                    <p className="text-gray-500">{dailyReport.checkInTime}</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between p-3 bg-blue-50 rounded-lg">
+                <div className="flex items-center space-x-3">
+                  <div className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center">
+                    <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                  <div>
+                    <p className="text-gray-900">Check-Out Time</p>
+                    <p className="text-gray-500">{dailyReport.checkOutTime}</p>
+                  </div>
+                </div>
+              </div>
+
+              {dailyReport.checkInBy && (
+                <div className="pt-3 border-t">
+                  <p className="text-gray-500">Checked in by: {dailyReport.checkInBy}</p>
+                </div>
+              )}
+            </>
+          )}
+
+          {/* Absent or no record */}
+          {(status === "absent" || status === "none") && (
             <div className="text-center py-6">
-              <svg className="w-16 h-16 text-gray-400 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              <svg className="w-16 h-16 text-red-300 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 5.636a9 9 0 11-12.728 0M12 9v4m0 4h.01" />
               </svg>
-              <p className="text-gray-500">Your child has not been checked in today.</p>
+              <p className="text-red-600 font-medium">Absent Today</p>
+              <p className="text-gray-500 text-sm mt-1">Your child has not been checked in today.</p>
             </div>
           )}
         </CardContent>
@@ -108,7 +164,7 @@ export default function CheckInStatus({ child, dailyReport }: CheckInStatusProps
             <CardDescription>See what {child.name} did today</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
               {dailyReport.photos.map((photo, i) => (
                 <div key={i} className="relative group cursor-pointer">
                   <img src={photo.url} alt={photo.caption} className="w-full h-24 object-cover rounded-lg" />
@@ -124,7 +180,7 @@ export default function CheckInStatus({ child, dailyReport }: CheckInStatusProps
       )}
 
       {/* Daily Report */}
-      {dailyReport && (
+      {dailyReport && hasAttendance && (
         <Card>
           <CardHeader>
             <CardTitle>Daily Report</CardTitle>

@@ -1,4 +1,4 @@
-package com.example.kidtracker;
+package com.kidtrackerapp.mobile;
 
 import com.getcapacitor.BridgeActivity;
 

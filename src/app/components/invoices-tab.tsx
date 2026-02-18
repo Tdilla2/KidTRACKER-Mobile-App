@@ -13,9 +13,26 @@ interface InvoicesTabProps {
 }
 
 export default function InvoicesTab({ child, invoices, onPayInvoice }: InvoicesTabProps) {
-  const weeklyRate = 300;
-  const dailyRate = 60;
-  const monthlyRate = 1200;
+  // Use the child's actual recurring charges from the dashboard
+  const monthlyCharge = child.recurringCharges.find(
+    (c) => c.description.toLowerCase().includes("month")
+  );
+  const weeklyCharge = child.recurringCharges.find(
+    (c) => c.description.toLowerCase().includes("week")
+  );
+  const dailyCharge = child.recurringCharges.find(
+    (c) => c.description.toLowerCase().includes("daily") || c.description.toLowerCase().includes("day")
+  );
+
+  // If only monthly is set, derive the others; if only weekly, derive from that, etc.
+  const monthlyRate = monthlyCharge?.amount
+    ?? (weeklyCharge ? weeklyCharge.amount * 4 : null)
+    ?? (dailyCharge ? dailyCharge.amount * 20 : null)
+    ?? (child.recurringCharges.length > 0 ? child.recurringCharges[0].amount : 0);
+  const weeklyRate = weeklyCharge?.amount
+    ?? (monthlyRate ? Math.round(monthlyRate / 4) : 0);
+  const dailyRate = dailyCharge?.amount
+    ?? (weeklyRate ? Math.round(weeklyRate / 5) : 0);
 
   const [paying, setPaying] = useState(false);
   const [showConfirm, setShowConfirm] = useState<string | null>(null);
@@ -79,27 +96,27 @@ export default function InvoicesTab({ child, invoices, onPayInvoice }: InvoicesT
 
             <TabsContent value="daily" className="mt-4">
               <div className="text-center py-6">
-                <p className="text-gray-500 mb-2">Daily Rate</p>
-                <p className="text-blue-600">${dailyRate}.00</p>
-                <p className="text-gray-400 mt-2">Per day of attendance</p>
+                <p className="text-gray-500 text-sm mb-2">Daily Rate</p>
+                <p className="text-blue-600 text-2xl font-semibold">${dailyRate.toFixed(2)}</p>
+                <p className="text-gray-400 text-sm mt-2">Per day of attendance</p>
               </div>
             </TabsContent>
 
             <TabsContent value="weekly" className="mt-4">
               <div className="text-center py-6">
-                <p className="text-gray-500 mb-2">Weekly Rate</p>
-                <p className="text-blue-600">${weeklyRate}.00</p>
-                <p className="text-gray-400 mt-2">For 5 days per week</p>
-                <p className="text-gray-400">${dailyRate}/day equivalent</p>
+                <p className="text-gray-500 text-sm mb-2">Weekly Rate</p>
+                <p className="text-blue-600 text-2xl font-semibold">${weeklyRate.toFixed(2)}</p>
+                <p className="text-gray-400 text-sm mt-2">For 5 days per week</p>
+                <p className="text-gray-400 text-sm">${dailyRate.toFixed(2)}/day equivalent</p>
               </div>
             </TabsContent>
 
             <TabsContent value="monthly" className="mt-4">
               <div className="text-center py-6">
-                <p className="text-gray-500 mb-2">Monthly Rate</p>
-                <p className="text-blue-600">${monthlyRate}.00</p>
-                <p className="text-gray-400 mt-2">Unlimited attendance</p>
-                <p className="text-gray-400">Best value for full-time care</p>
+                <p className="text-gray-500 text-sm mb-2">Monthly Rate</p>
+                <p className="text-blue-600 text-2xl font-semibold">${monthlyRate.toFixed(2)}</p>
+                <p className="text-gray-400 text-sm mt-2">Unlimited attendance</p>
+                <p className="text-gray-400 text-sm">Best value for full-time care</p>
               </div>
             </TabsContent>
           </Tabs>

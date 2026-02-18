@@ -1,7 +1,9 @@
 const BASE_URL = "https://v9iqpcma3c.execute-api.us-east-1.amazonaws.com/prod/api";
 
 async function fetchJSON<T>(endpoint: string): Promise<T> {
-  const res = await fetch(`${BASE_URL}${endpoint}`);
+  const sep = endpoint.includes("?") ? "&" : "?";
+  const url = `${BASE_URL}${endpoint}${sep}_t=${Date.now()}`;
+  const res = await fetch(url);
   if (!res.ok) {
     throw new Error(`API error ${res.status}: ${res.statusText}`);
   }
@@ -52,6 +54,7 @@ export interface RawChild {
   allergies: string | null;
   medical_notes: string | null;
   parent_user_id: string | null;
+  recurring_charges: { amount: number; description: string }[] | null;
 }
 
 export interface RawClassroom {
@@ -111,6 +114,8 @@ export interface RawInvoice {
   amount: number;
   status: string;
   due_date: string;
+  created_at?: string;
+  description?: string;
 }
 
 export interface RawAppUser {

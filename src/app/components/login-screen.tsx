@@ -6,6 +6,7 @@ import { Input } from "./ui/input";
 import { Label } from "./ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
 
+
 interface LoginScreenProps {
   onLogin: (user: RawAppUser) => void;
   onDemo: () => void;
@@ -70,24 +71,10 @@ export default function LoginScreen({ onLogin, onDemo }: LoginScreenProps) {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-blue-100 flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
+      <div className="w-full max-w-lg">
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-600 rounded-full mb-4">
-            <svg
-              className="w-10 h-10 text-white"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"
-              />
-            </svg>
-          </div>
-          <h1 className="text-blue-900 mb-2">KidTRACKER Mobile</h1>
+          <img src="kidtracker-logo.png" alt="KidTRACKERApp" style={{ maxWidth: "12rem", width: "50%", margin: "0 auto 1rem auto", display: "block" }} />
+          <h1 className="text-blue-900 mb-2">Mobile</h1>
           <p className="text-gray-600">Welcome back! Please sign in to continue.</p>
         </div>
 
