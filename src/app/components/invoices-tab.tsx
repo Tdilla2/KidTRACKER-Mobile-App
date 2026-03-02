@@ -50,7 +50,6 @@ export default function InvoicesTab({ child, invoices, onPayInvoice }: InvoicesT
     ?? (weeklyRate ? Math.round(weeklyRate / 5) : 0);
 
   const [paying, setPaying] = useState(false);
-  const [showConfirm, setShowConfirm] = useState<string | null>(null);
   const [paySuccess, setPaySuccess] = useState<string | null>(null);
 
   const paidInvoices = invoices.filter((i) => i.status === "Paid");
@@ -62,13 +61,13 @@ export default function InvoicesTab({ child, invoices, onPayInvoice }: InvoicesT
       if (onPayInvoice) {
         await onPayInvoice(invoiceId);
       }
+      // If we reach here without a redirect, mark success locally (demo mode)
       setPaySuccess(invoiceId);
-      setShowConfirm(null);
     } catch {
-      alert("Payment failed. Please try again.");
-    } finally {
+      alert("Could not initiate payment. Please try again.");
       setPaying(false);
     }
+    // Don't reset paying state — the page will redirect to Stripe
   };
 
   return (
@@ -178,33 +177,16 @@ export default function InvoicesTab({ child, invoices, onPayInvoice }: InvoicesT
               <p className="text-gray-500">Due Date: {pendingInvoice.dueDate}</p>
             </div>
 
-            {showConfirm === pendingInvoice.id ? (
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-3">
-                <p className="text-blue-900 text-center">
-                  Confirm payment of <strong>${pendingInvoice.amount.toFixed(2)}</strong>?
+            {paying ? (
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <p className="text-blue-900 text-center text-sm">
+                  Redirecting to secure payment...
                 </p>
-                <div className="flex space-x-2">
-                  <Button
-                    variant="outline"
-                    className="flex-1"
-                    onClick={() => setShowConfirm(null)}
-                    disabled={paying}
-                  >
-                    Cancel
-                  </Button>
-                  <Button
-                    className="flex-1 bg-green-600 hover:bg-green-700 text-white"
-                    onClick={() => handlePay(pendingInvoice.id)}
-                    disabled={paying}
-                  >
-                    {paying ? "Processing..." : "Confirm Pay"}
-                  </Button>
-                </div>
               </div>
             ) : (
               <Button
                 className="w-full bg-blue-600 hover:bg-blue-700 text-white"
-                onClick={() => setShowConfirm(pendingInvoice.id)}
+                onClick={() => handlePay(pendingInvoice.id)}
               >
                 Pay Now
               </Button>

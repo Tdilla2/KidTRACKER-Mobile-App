@@ -12,6 +12,7 @@ import {
   updateChildApi,
   updateInvoiceApi,
 } from "../api/kidTrackerApi";
+import { createCheckoutSession } from "../api/stripeApi";
 import type { RawChild, RawActivityPhoto } from "../api/kidTrackerApi";
 import {
   transformChild,
@@ -278,20 +279,27 @@ export function useKidTrackerData(
   };
 
   const payInvoice = async (invoiceId: string) => {
-    try {
-      await updateInvoiceApi(invoiceId, {
-        status: "Paid",
-        paid_at: new Date().toISOString(),
-      });
-      setAllInvoices((prev) =>
-        prev.map((inv) =>
-          inv.id === invoiceId ? { ...inv, status: "Paid" } : inv
-        )
-      );
-    } catch (err: any) {
-      console.error("Failed to pay invoice:", err);
-      throw err;
-    }
+    const invoice = allInvoices.find((inv) => inv.id === invoiceId);
+    if (!invoice) throw new Error("Invoice not found");
+
+    // Create a Stripe Checkout Session and redirect
+    const { url } = await createCheckoutSession({
+      invoiceId: invoice.id,
+      invoiceNumber: invoice.invoiceNumber,
+      amount: invoice.amount,
+      childName: child?.name ?? "",
+      description: invoice.description,
+      customerEmail: child?.parentEmail ?? "",
+    });
+
+    // Save pending payment info so we can verify on return
+    localStorage.setItem(
+      "kidtracker_pending_payment",
+      JSON.stringify({ invoiceId, timestamp: Date.now() })
+    );
+
+    // Redirect to Stripe Checkout
+    window.location.href = url;
   };
 
   return {
