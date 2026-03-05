@@ -120,6 +120,7 @@ export interface RawInvoice {
   due_date: string;
   created_at?: string;
   description?: string;
+  paid_date?: string;
 }
 
 export interface RawAppUser {

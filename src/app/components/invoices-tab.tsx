@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
 import { Badge } from "./ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import { Separator } from "./ui/separator";
 import { Button } from "./ui/button";
 import type { ChildData, InvoiceData } from "../hooks/useKidTrackerData";
+import type { PaymentResult } from "../App";
 
 /** Parse an invoice description like "Monthly Tuition: $350.00, Registration Fee: $250.00"
  *  into an array of { label, amount } line items. */
@@ -21,13 +22,24 @@ function parseLineItems(description: string): { label: string; amount: string }[
   });
 }
 
+/** Format a date string like "2026-01-15" or ISO timestamp to "Jan 15, 2026". */
+function formatDate(dateStr: string): string {
+  if (!dateStr) return "";
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return dateStr;
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+}
+
 interface InvoicesTabProps {
   child: ChildData;
   invoices: InvoiceData[];
-  onPayInvoice?: (invoiceId: string) => Promise<void>;
+  onStartPayment?: (invoiceId: string) => Promise<string>;
+  onConfirmPayment?: (sessionId: string) => Promise<boolean>;
+  paymentReturn?: PaymentResult | null;
+  onClearPaymentReturn?: () => void;
 }
 
-export default function InvoicesTab({ child, invoices, onPayInvoice }: InvoicesTabProps) {
+export default function InvoicesTab({ child, invoices, onStartPayment, onConfirmPayment, paymentReturn, onClearPaymentReturn }: InvoicesTabProps) {
   // Use the child's actual recurring charges from the dashboard
   const monthlyCharge = child.recurringCharges.find(
     (c) => c.description.toLowerCase().includes("month")
@@ -49,25 +61,148 @@ export default function InvoicesTab({ child, invoices, onPayInvoice }: InvoicesT
   const dailyRate = dailyCharge?.amount
     ?? (weeklyRate ? Math.round(weeklyRate / 5) : 0);
 
-  const [paying, setPaying] = useState(false);
+  const [payState, setPayState] = useState<"idle" | "creating" | "waiting" | "success" | "error">("idle");
   const [paySuccess, setPaySuccess] = useState<string | null>(null);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const paidInvoices = invoices.filter((i) => i.status === "Paid");
-  const pendingInvoice = invoices.find((i) => i.status !== "Paid");
+  // Clean up polling on unmount
+  useEffect(() => {
+    return () => {
+      if (pollRef.current) clearInterval(pollRef.current);
+    };
+  }, []);
+
+  // Handle return from Stripe redirect — verify payment and update invoice in DB
+  useEffect(() => {
+    if (!paymentReturn) return;
+
+    if (paymentReturn.type === "success" && paymentReturn.sessionId && onConfirmPayment) {
+      setPayState("creating"); // Show a "verifying" state
+      let cancelled = false;
+
+      const verify = async () => {
+        try {
+          const paid = await onConfirmPayment(paymentReturn.sessionId!);
+          if (cancelled) return;
+          if (paid) {
+            setPayState("success");
+            setPaySuccess("stripe_redirect");
+          } else {
+            // Payment not yet confirmed — poll a few more times
+            let attempts = 0;
+            const poll = setInterval(async () => {
+              attempts++;
+              try {
+                const result = await onConfirmPayment(paymentReturn.sessionId!);
+                if (result || attempts >= 10) {
+                  clearInterval(poll);
+                  if (!cancelled) {
+                    setPayState(result ? "success" : "error");
+                    if (result) setPaySuccess("stripe_redirect");
+                  }
+                }
+              } catch {
+                if (attempts >= 10) {
+                  clearInterval(poll);
+                  if (!cancelled) setPayState("error");
+                }
+              }
+            }, 3000);
+          }
+        } catch {
+          if (!cancelled) setPayState("error");
+        }
+      };
+
+      verify();
+      onClearPaymentReturn?.();
+      return () => { cancelled = true; };
+    } else if (paymentReturn.type === "cancel") {
+      setPayState("idle");
+      onClearPaymentReturn?.();
+    }
+  }, [paymentReturn, onConfirmPayment, onClearPaymentReturn]);
+
+  const paidInvoices = invoices.filter((i) => i.status.toLowerCase() === "paid");
+  const allPendingInvoices = invoices.filter((i) => i.status.toLowerCase() !== "paid");
+  const pendingInvoice = allPendingInvoices[0] ?? null;
+
+  // Sort all invoices by date descending (newest first)
+  const sortedInvoices = [...invoices].sort((a, b) => {
+    const dateA = a.date || a.dueDate || "";
+    const dateB = b.date || b.dueDate || "";
+    return dateB.localeCompare(dateA);
+  });
+
+  const lastSessionRef = useRef<string | null>(null);
 
   const handlePay = async (invoiceId: string) => {
-    setPaying(true);
+    if (!onStartPayment || !onConfirmPayment) return;
+
+    setPayState("creating");
     try {
-      if (onPayInvoice) {
-        await onPayInvoice(invoiceId);
-      }
-      // If we reach here without a redirect, mark success locally (demo mode)
-      setPaySuccess(invoiceId);
+      // Create session and open Stripe in browser
+      const sessionId = await onStartPayment(invoiceId);
+      lastSessionRef.current = sessionId;
+      setPayState("waiting");
+
+      // Poll every 5 seconds to check if payment completed
+      pollRef.current = setInterval(async () => {
+        try {
+          const paid = await onConfirmPayment(sessionId);
+          if (paid) {
+            if (pollRef.current) clearInterval(pollRef.current);
+            pollRef.current = null;
+            setPayState("success");
+            setPaySuccess(invoiceId);
+          }
+        } catch {
+          // Ignore polling errors, keep trying
+        }
+      }, 5000);
     } catch {
-      alert("Could not initiate payment. Please try again.");
-      setPaying(false);
+      setPayState("error");
+      setTimeout(() => setPayState("idle"), 3000);
     }
-    // Don't reset paying state — the page will redirect to Stripe
+  };
+
+  // Manual "Check Payment" for when user returns from browser
+  const handleCheckPayment = async () => {
+    const sid = lastSessionRef.current;
+    if (!sid || !onConfirmPayment) return;
+    setPayState("creating");
+    try {
+      const paid = await onConfirmPayment(sid);
+      if (paid) {
+        if (pollRef.current) clearInterval(pollRef.current);
+        pollRef.current = null;
+        setPayState("success");
+        setPaySuccess("manual_check");
+      } else {
+        setPayState("waiting");
+      }
+    } catch {
+      setPayState("waiting");
+    }
+  };
+
+  // Listen for invoices changing (e.g. browserFinished triggered confirmPayment)
+  useEffect(() => {
+    if (lastSessionRef.current && pendingInvoice === null) {
+      // The pending invoice was paid via browserFinished handler
+      setPayState("success");
+      setPaySuccess("auto_verified");
+      if (pollRef.current) clearInterval(pollRef.current);
+      pollRef.current = null;
+      lastSessionRef.current = null;
+    }
+  }, [invoices, pendingInvoice]);
+
+  const handleCancel = () => {
+    if (pollRef.current) clearInterval(pollRef.current);
+    pollRef.current = null;
+    lastSessionRef.current = null;
+    setPayState("idle");
   };
 
   return (
@@ -138,7 +273,7 @@ export default function InvoicesTab({ child, invoices, onPayInvoice }: InvoicesT
       </Card>
 
       {/* Current Invoice */}
-      {pendingInvoice && paySuccess !== pendingInvoice.id ? (
+      {pendingInvoice && payState !== "success" ? (
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between">
@@ -177,19 +312,53 @@ export default function InvoicesTab({ child, invoices, onPayInvoice }: InvoicesT
               <p className="text-gray-500">Due Date: {pendingInvoice.dueDate}</p>
             </div>
 
-            {paying ? (
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                <p className="text-blue-900 text-center text-sm">
-                  Redirecting to secure payment...
-                </p>
-              </div>
-            ) : (
+            {payState === "idle" && (
               <Button
                 className="w-full bg-blue-600 hover:bg-blue-700 text-white"
                 onClick={() => handlePay(pendingInvoice.id)}
               >
                 Pay Now
               </Button>
+            )}
+
+            {payState === "creating" && (
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <p className="text-blue-900 text-center text-sm">
+                  {paySuccess === null ? "Opening secure payment..." : "Verifying payment..."}
+                </p>
+              </div>
+            )}
+
+            {payState === "waiting" && (
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-3">
+                <p className="text-blue-900 text-center text-sm font-medium">
+                  Complete payment in the browser window
+                </p>
+                <p className="text-blue-700 text-center text-xs">
+                  Already paid? Tap below to verify.
+                </p>
+                <Button
+                  className="w-full bg-green-600 hover:bg-green-700 text-white"
+                  onClick={handleCheckPayment}
+                >
+                  Check Payment Status
+                </Button>
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  onClick={handleCancel}
+                >
+                  Cancel
+                </Button>
+              </div>
+            )}
+
+            {payState === "error" && (
+              <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                <p className="text-red-900 text-center text-sm">
+                  Could not initiate payment. Please try again.
+                </p>
+              </div>
             )}
           </CardContent>
         </Card>
@@ -208,74 +377,97 @@ export default function InvoicesTab({ child, invoices, onPayInvoice }: InvoicesT
         </Card>
       )}
 
-      {/* Invoice History */}
+      {/* Payment History */}
       <Card>
         <CardHeader>
-          <CardTitle>Invoice History</CardTitle>
-          <CardDescription>Past invoices and payments</CardDescription>
+          <CardTitle>Payment History</CardTitle>
+          <CardDescription>All invoices and payments for {child.name}</CardDescription>
         </CardHeader>
         <CardContent>
-          {paidInvoices.length === 0 && !paySuccess ? (
+          {/* Summary */}
+          {invoices.length > 0 && (
+            <div className="grid grid-cols-3 gap-3 mb-4">
+              <div className="bg-green-50 rounded-lg p-3 text-center">
+                <p className="text-green-700 text-lg font-semibold">
+                  ${paidInvoices.reduce((sum, inv) => sum + inv.amount, 0).toFixed(2)}
+                </p>
+                <p className="text-green-600 text-xs">Total Paid</p>
+              </div>
+              <div className="bg-yellow-50 rounded-lg p-3 text-center">
+                <p className="text-yellow-700 text-lg font-semibold">
+                  ${allPendingInvoices.reduce((sum, inv) => sum + inv.amount, 0).toFixed(2)}
+                </p>
+                <p className="text-yellow-600 text-xs">Outstanding</p>
+              </div>
+              <div className="bg-blue-50 rounded-lg p-3 text-center">
+                <p className="text-blue-700 text-lg font-semibold">
+                  {invoices.length}
+                </p>
+                <p className="text-blue-600 text-xs">Total Invoices</p>
+              </div>
+            </div>
+          )}
+
+          {sortedInvoices.length === 0 ? (
             <div className="text-center py-6">
-              <p className="text-gray-500">No payment history yet.</p>
+              <p className="text-gray-500">No invoices yet.</p>
             </div>
           ) : (
             <div className="space-y-3">
-              {paySuccess && pendingInvoice && (
-                <div className="p-3 bg-gray-50 rounded-lg">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-gray-900">{pendingInvoice.invoiceNumber}</p>
-                      <p className="text-gray-500 text-sm">{new Date().toISOString().split("T")[0]}</p>
+              {sortedInvoices.map((invoice) => {
+                const isPaid = invoice.status.toLowerCase() === "paid";
+                const isOverdue = !isPaid && invoice.dueDate && new Date(invoice.dueDate) < new Date();
+                return (
+                  <div
+                    key={invoice.id}
+                    className="p-3 bg-gray-50 rounded-lg"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-gray-900 font-medium text-sm">{invoice.invoiceNumber}</p>
+                        <p className="text-gray-500 text-xs">
+                          Issued: {formatDate(invoice.date)}
+                        </p>
+                        {isPaid && invoice.paidAt && (
+                          <p className="text-green-600 text-xs">
+                            Paid: {formatDate(invoice.paidAt)}
+                          </p>
+                        )}
+                        {!isPaid && invoice.dueDate && (
+                          <p className={isOverdue ? "text-red-600 text-xs" : "text-yellow-600 text-xs"}>
+                            Due: {formatDate(invoice.dueDate)}
+                          </p>
+                        )}
+                      </div>
+                      <div className="text-right">
+                        <p className="text-gray-900 font-semibold">${invoice.amount.toFixed(2)}</p>
+                        <Badge
+                          variant="outline"
+                          className={
+                            isPaid
+                              ? "bg-green-50 text-green-700 border-green-200"
+                              : isOverdue
+                              ? "bg-red-50 text-red-700 border-red-200"
+                              : "bg-yellow-50 text-yellow-700 border-yellow-200"
+                          }
+                        >
+                          {isPaid ? "Paid" : isOverdue ? "Overdue" : "Pending"}
+                        </Badge>
+                      </div>
                     </div>
-                    <div className="text-right">
-                      <p className="text-gray-900 font-medium">${pendingInvoice.amount.toFixed(2)}</p>
-                      <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-                        Paid
-                      </Badge>
-                    </div>
+                    {invoice.description && (
+                      <div className="mt-2 pt-2 border-t border-gray-200 space-y-1">
+                        {parseLineItems(invoice.description).map((item, i) => (
+                          <div key={i} className="flex justify-between text-xs">
+                            <span className="text-gray-500">{item.label}</span>
+                            <span className="text-gray-600">{item.amount}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
-                  {pendingInvoice.description && (
-                    <div className="mt-2 pt-2 border-t border-gray-200 space-y-1">
-                      {parseLineItems(pendingInvoice.description).map((item, i) => (
-                        <div key={i} className="flex justify-between text-sm">
-                          <span className="text-gray-500">{item.label}</span>
-                          <span className="text-gray-600">{item.amount}</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-              {paidInvoices.map((invoice) => (
-                <div
-                  key={invoice.id}
-                  className="p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
-                >
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-gray-900">{invoice.invoiceNumber}</p>
-                      <p className="text-gray-500 text-sm">{invoice.date}</p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-gray-900 font-medium">${invoice.amount.toFixed(2)}</p>
-                      <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-                        {invoice.status}
-                      </Badge>
-                    </div>
-                  </div>
-                  {invoice.description && (
-                    <div className="mt-2 pt-2 border-t border-gray-200 space-y-1">
-                      {parseLineItems(invoice.description).map((item, i) => (
-                        <div key={i} className="flex justify-between text-sm">
-                          <span className="text-gray-500">{item.label}</span>
-                          <span className="text-gray-600">{item.amount}</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </CardContent>
