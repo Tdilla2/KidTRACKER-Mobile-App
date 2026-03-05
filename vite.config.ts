@@ -73,6 +73,8 @@ function cssDownlevel(): import('vite').Plugin {
   };
 }
 
+const isCapacitor = !process.env.AMPLIFY_BUILD;
+
 export default defineConfig({
   base: './',
   plugins: [
@@ -80,18 +82,19 @@ export default defineConfig({
     // Tailwind is not being actively used – do not remove them
     react(),
     tailwindcss(),
-    cssDownlevel(),
-    stripModuleAttrs(),
+    ...(isCapacitor ? [cssDownlevel(), stripModuleAttrs()] : []),
   ],
   build: {
-    target: 'es2017',
+    target: isCapacitor ? 'es2017' : 'esnext',
     cssMinify: 'lightningcss',
   },
   css: {
     lightningcss: {
-      targets: {
-        chrome: (68 << 16),
-      },
+      ...(isCapacitor && {
+        targets: {
+          chrome: (68 << 16),
+        },
+      }),
     },
   },
   resolve: {

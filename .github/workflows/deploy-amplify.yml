@@ -24,6 +24,8 @@ jobs:
 
       - name: Build
         run: npx vite build --base /
+        env:
+          AMPLIFY_BUILD: "true"
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
