@@ -75,7 +75,7 @@ export default function LoginScreen({ onLogin, onDemo }: LoginScreenProps) {
         <div className="text-center mb-8">
           <img src="kidtracker-logo.png" alt="KidTRACKERApp" style={{ maxWidth: "12rem", width: "50%", margin: "0 auto 1rem auto", display: "block" }} />
           <h1 className="text-blue-900 mb-2">Mobile</h1>
-          <p className="text-gray-600">Welcome back! Please sign in to continue.</p>
+          <p className="text-gray-600">Welcome back! Please sign on to continue.</p>
         </div>
 
         {error && (
@@ -86,7 +86,7 @@ export default function LoginScreen({ onLogin, onDemo }: LoginScreenProps) {
 
         <Card>
           <CardHeader>
-            <CardTitle>Sign In</CardTitle>
+            <CardTitle>Sign On</CardTitle>
             <CardDescription>Enter the credentials provided by your daycare</CardDescription>
           </CardHeader>
           <CardContent>
@@ -131,7 +131,7 @@ export default function LoginScreen({ onLogin, onDemo }: LoginScreenProps) {
                 </p>
               </div>
               <Button type="submit" className="w-full bg-blue-600 hover:bg-blue-700" disabled={loading}>
-                {loading ? "Signing in..." : "Sign In"}
+                {loading ? "Signing on..." : "Sign On"}
               </Button>
             </form>
             <div className="mt-4 pt-4 border-t border-gray-200">
