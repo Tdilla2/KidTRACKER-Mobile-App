@@ -23,7 +23,7 @@ jobs:
         run: npm ci
 
       - name: Build
-        run: npm run build
+        run: npx vite build --base /
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
