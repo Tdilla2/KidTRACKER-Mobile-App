@@ -93,13 +93,13 @@ export default function Dashboard({ onLogout, userId, daycareId, userName, isDem
                   />
                 </svg>
               </button>
-              {/* Logout button */}
+              {/* Sign Off button */}
               <button
                 onClick={onLogout}
-                className="text-blue-100 hover:text-white"
+                className="flex items-center gap-1 text-blue-100 hover:text-white"
               >
                 <svg
-                  className="w-6 h-6"
+                  className="w-5 h-5"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
@@ -111,6 +111,7 @@ export default function Dashboard({ onLogout, userId, daycareId, userName, isDem
                     d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
                   />
                 </svg>
+                <span className="text-sm">Sign Off</span>
               </button>
             </div>
           </div>
