@@ -64,9 +64,9 @@ const DEMO_MEALS: MealData[] = [
 ];
 
 const DEMO_INVOICES: InvoiceData[] = [
-  { id: "inv1", childId: "demo-child-001", invoiceNumber: "INV-2026-001", date: "2026-01-01", amount: 1200, status: "Paid", dueDate: "2026-01-15", description: "Monthly Tuition: $1200.00" },
-  { id: "inv2", childId: "demo-child-001", invoiceNumber: "INV-2026-002", date: "2026-02-01", amount: 1200, status: "Pending", dueDate: "2026-02-15", description: "Monthly Tuition: $1200.00" },
-  { id: "inv3", childId: "demo-child-001", invoiceNumber: "INV-2025-012", date: "2025-12-01", amount: 1200, status: "Paid", dueDate: "2025-12-15", description: "Monthly Tuition: $1200.00" },
+  { id: "inv1", childId: "demo-child-001", invoiceNumber: "INV-2026-001", date: "2026-01-01", amount: 1200, status: "paid", dueDate: "2026-01-15", description: "Monthly Tuition: $1200.00", paidAt: "2026-01-10T14:30:00Z" },
+  { id: "inv2", childId: "demo-child-001", invoiceNumber: "INV-2026-002", date: "2026-02-01", amount: 1200, status: "pending", dueDate: "2026-02-15", description: "Monthly Tuition: $1200.00", paidAt: "" },
+  { id: "inv3", childId: "demo-child-001", invoiceNumber: "INV-2025-012", date: "2025-12-01", amount: 1200, status: "paid", dueDate: "2025-12-15", description: "Monthly Tuition: $1200.00", paidAt: "2025-12-12T10:15:00Z" },
 ];
 
 export function useDemoData() {
@@ -88,12 +88,18 @@ export function useDemoData() {
     // No-op in demo mode
   };
 
-  const payInvoice = async (invoiceId: string) => {
+  const startPayment = async (invoiceId: string) => {
+    // In demo mode, simulate payment locally
     setInvoices((prev) =>
       prev.map((inv) =>
-        inv.id === invoiceId ? { ...inv, status: "Paid" } : inv
+        inv.id === invoiceId ? { ...inv, status: "paid" } : inv
       )
     );
+    return "demo-session";
+  };
+
+  const confirmPayment = async (_sessionId: string) => {
+    return true;
   };
 
   return {
@@ -111,7 +117,8 @@ export function useDemoData() {
     lastUpdated: new Date(),
     updateChildProfile,
     createReport,
-    payInvoice,
+    startPayment,
+    confirmPayment,
     reload: () => {},
   };
 }

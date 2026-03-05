@@ -9,6 +9,7 @@ export interface CreateCheckoutSessionRequest {
   childName: string;
   description: string;
   customerEmail: string;
+  returnUrl?: string;
 }
 
 export interface CreateCheckoutSessionResponse {

@@ -14,9 +14,8 @@ interface DashboardProps {
   daycareId: string;
   userName: string;
   isDemo?: boolean;
-  paymentResult?: PaymentResult | null;
-  onDismissPaymentResult?: () => void;
-  reloadKey?: number;
+  paymentReturn?: PaymentResult | null;
+  onClearPaymentReturn?: () => void;
 }
 
 function formatLastUpdated(date: Date | null): string {
@@ -29,25 +28,18 @@ function formatLastUpdated(date: Date | null): string {
   return `${diffMin}m ago`;
 }
 
-export default function Dashboard({ onLogout, userId, daycareId, userName, isDemo, paymentResult, onDismissPaymentResult, reloadKey }: DashboardProps) {
+export default function Dashboard({ onLogout, userId, daycareId, userName, isDemo, paymentReturn, onClearPaymentReturn }: DashboardProps) {
   const [activeTab, setActiveTab] = useState("home");
 
-  // Auto-switch to billing tab when returning from Stripe payment
+  // If returning from Stripe, auto-switch to billing tab
   useEffect(() => {
-    if (paymentResult) {
+    if (paymentReturn) {
       setActiveTab("billing");
     }
-  }, [paymentResult]);
+  }, [paymentReturn]);
   const liveData = useKidTrackerData(userId, daycareId, !!isDemo);
   const demoData = useDemoData();
   const data = isDemo ? demoData : liveData;
-
-  // Reload data after a successful Stripe payment so invoice status updates
-  useEffect(() => {
-    if (reloadKey && reloadKey > 0) {
-      data.reload();
-    }
-  }, [reloadKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (data.loading) {
     return (
@@ -163,28 +155,6 @@ export default function Dashboard({ onLogout, userId, daycareId, userName, isDem
         </div>
       )}
 
-      {/* Stripe payment result banner */}
-      {paymentResult && (
-        <div
-          className={
-            "px-4 py-3 text-center text-sm font-medium flex items-center justify-center gap-2 " +
-            (paymentResult.type === "success"
-              ? "bg-green-100 text-green-800"
-              : paymentResult.type === "cancel"
-              ? "bg-yellow-100 text-yellow-800"
-              : "bg-red-100 text-red-800")
-          }
-        >
-          <span>{paymentResult.message}</span>
-          <button
-            onClick={onDismissPaymentResult}
-            className="ml-2 underline text-xs opacity-70 hover:opacity-100"
-          >
-            Dismiss
-          </button>
-        </div>
-      )}
-
       {/* Child Switcher */}
       {hasMultipleChildren && (
         <div className="max-w-lg mx-auto px-4 pt-4">
@@ -232,7 +202,7 @@ export default function Dashboard({ onLogout, userId, daycareId, userName, isDem
           </TabsContent>
 
           <TabsContent value="billing">
-            <InvoicesTab child={data.child} invoices={data.invoices} onPayInvoice={data.payInvoice} />
+            <InvoicesTab child={data.child} invoices={data.invoices} onStartPayment={data.startPayment} onConfirmPayment={data.confirmPayment} paymentReturn={paymentReturn} onClearPaymentReturn={onClearPaymentReturn} />
           </TabsContent>
 
           <TabsContent value="meals">

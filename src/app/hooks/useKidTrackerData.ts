@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import { Browser } from "@capacitor/browser";
 import {
   fetchChildren,
   fetchClassrooms,
@@ -12,7 +13,7 @@ import {
   updateChildApi,
   updateInvoiceApi,
 } from "../api/kidTrackerApi";
-import { createCheckoutSession } from "../api/stripeApi";
+import { createCheckoutSession, verifyPayment } from "../api/stripeApi";
 import type { RawChild, RawActivityPhoto } from "../api/kidTrackerApi";
 import {
   transformChild,
@@ -89,6 +90,7 @@ export interface InvoiceData {
   status: string;
   dueDate: string;
   description: string;
+  paidAt: string;
 }
 
 const POLL_INTERVAL_MS = 30_000; // refresh every 30 seconds
@@ -278,29 +280,69 @@ export function useKidTrackerData(
     // No-op — parent app doesn't create reports; daycare staff do via the dashboard
   };
 
-  const payInvoice = async (invoiceId: string) => {
+  // Track active payment session for browser-return verification
+  const activeSessionRef = useRef<string | null>(null);
+
+  /** Creates a Stripe Checkout Session and opens it. Returns sessionId for polling. */
+  const startPayment = async (invoiceId: string) => {
     const invoice = allInvoices.find((inv) => inv.id === invoiceId);
     if (!invoice) throw new Error("Invoice not found");
 
-    // Create a Stripe Checkout Session and redirect
-    const { url } = await createCheckoutSession({
+    const { sessionId, url } = await createCheckoutSession({
       invoiceId: invoice.id,
       invoiceNumber: invoice.invoiceNumber,
       amount: invoice.amount,
       childName: child?.name ?? "",
       description: invoice.description,
       customerEmail: child?.parentEmail ?? "",
+      returnUrl: window.location.origin + window.location.pathname,
     });
 
-    // Save pending payment info so we can verify on return
-    localStorage.setItem(
-      "kidtracker_pending_payment",
-      JSON.stringify({ invoiceId, timestamp: Date.now() })
-    );
+    // Store sessionId so browserFinished can verify it
+    activeSessionRef.current = sessionId;
 
-    // Redirect to Stripe Checkout
-    window.location.href = url;
+    // Open Stripe Checkout in an in-app browser (Chrome Custom Tab)
+    await Browser.open({ url });
+
+    return sessionId;
   };
+
+  /** Verify a Stripe session, update DB and local state if paid. */
+  const confirmPayment = async (sessionId: string) => {
+    const result = await verifyPayment(sessionId);
+    if (result.paid) {
+      const paidDate = new Date().toISOString();
+      await updateInvoiceApi(result.invoiceId, {
+        status: "paid",
+        paid_date: paidDate,
+      });
+      setAllInvoices((prev) =>
+        prev.map((inv) =>
+          inv.id === result.invoiceId ? { ...inv, status: "paid", paidAt: paidDate } : inv
+        )
+      );
+      activeSessionRef.current = null;
+      return true;
+    }
+    return false;
+  };
+
+  // Listen for Chrome Custom Tab close — verify payment when user returns
+  useEffect(() => {
+    const listener = Browser.addListener("browserFinished", async () => {
+      const sid = activeSessionRef.current;
+      if (!sid) return;
+      // Retry verification a few times (Stripe may take a moment)
+      for (let i = 0; i < 5; i++) {
+        try {
+          const paid = await confirmPayment(sid);
+          if (paid) return;
+        } catch { /* ignore */ }
+        await new Promise((r) => setTimeout(r, 2000));
+      }
+    });
+    return () => { listener.then((h) => h.remove()); };
+  }, []);
 
   return {
     child,
@@ -317,7 +359,8 @@ export function useKidTrackerData(
     lastUpdated,
     updateChildProfile,
     createReport,
-    payInvoice,
+    startPayment,
+    confirmPayment,
     reload: loadData,
   };
 }

@@ -237,6 +237,7 @@ export function transformInvoice(raw: RawInvoice): InvoiceData {
     status: raw.status ?? "Pending",
     dueDate: raw.due_date ?? raw.date,
     description: raw.description ?? "",
+    paidAt: raw.paid_date ?? "",
   };
 }
 

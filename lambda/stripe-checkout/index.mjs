@@ -29,11 +29,17 @@ export async function handler(event) {
 
   // --- Create Checkout Session ---
   if (path.endsWith("/create-checkout-session")) {
-    const { invoiceId, invoiceNumber, amount, childName, description, customerEmail } = body;
+    const { invoiceId, invoiceNumber, amount, childName, description, customerEmail, returnUrl } = body;
 
     if (!invoiceId || !amount) {
       return respond(400, { error: "invoiceId and amount are required" });
     }
+
+    // Build success/cancel URLs from client-provided returnUrl
+    const baseUrl = returnUrl || "https://localhost";
+    const separator = baseUrl.includes("?") ? "&" : "?";
+    const successUrl = `${baseUrl}${separator}stripe_status=success&session_id={CHECKOUT_SESSION_ID}`;
+    const cancelUrl = `${baseUrl}${separator}stripe_status=cancel`;
 
     try {
       const session = await stripe.checkout.sessions.create({
@@ -56,8 +62,8 @@ export async function handler(event) {
           },
         ],
         metadata: { invoiceId, invoiceNumber: invoiceNumber || "" },
-        success_url: "http://localhost/?stripe_status=success&session_id={CHECKOUT_SESSION_ID}",
-        cancel_url: "http://localhost/?stripe_status=cancel",
+        success_url: successUrl,
+        cancel_url: cancelUrl,
       });
 
       return respond(200, { sessionId: session.id, url: session.url });
@@ -77,6 +83,7 @@ export async function handler(event) {
 
     try {
       const session = await stripe.checkout.sessions.retrieve(sessionId);
+      console.log("Verify session:", sessionId, "payment_status:", session.payment_status, "status:", session.status);
 
       return respond(200, {
         paid: session.payment_status === "paid",
