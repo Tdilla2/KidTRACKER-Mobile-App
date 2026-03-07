@@ -1,9 +1,14 @@
 const BASE_URL = "https://v9iqpcma3c.execute-api.us-east-1.amazonaws.com/prod/api";
+const API_KEY = "kt_live_f8a3d7e1b9c4f6a2e5d8b3c7f1a9d4e6";
+
+const API_HEADERS: Record<string, string> = {
+  "x-api-key": API_KEY,
+};
 
 async function fetchJSON<T>(endpoint: string): Promise<T> {
   const sep = endpoint.includes("?") ? "&" : "?";
   const url = `${BASE_URL}${endpoint}${sep}_t=${Date.now()}`;
-  const res = await fetch(url);
+  const res = await fetch(url, { headers: API_HEADERS });
   if (!res.ok) {
     throw new Error(`API error ${res.status}: ${res.statusText}`);
   }
@@ -13,7 +18,7 @@ async function fetchJSON<T>(endpoint: string): Promise<T> {
 async function putJSON<T>(endpoint: string, body: Record<string, unknown>): Promise<T> {
   const res = await fetch(`${BASE_URL}${endpoint}`, {
     method: "PUT",
-    headers: { "Content-Type": "application/json" },
+    headers: { ...API_HEADERS, "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
   if (!res.ok) {
@@ -126,7 +131,6 @@ export interface RawInvoice {
 export interface RawAppUser {
   id: string;
   username: string;
-  password: string;
   full_name: string;
   email: string;
   role: string;
@@ -134,6 +138,27 @@ export interface RawAppUser {
   child_ids: string[];
   parent_code: string | null;
   daycare_id: string | null;
+}
+
+export interface LoginParentResponse {
+  success: boolean;
+  user: RawAppUser;
+  daycare: RawDaycare | null;
+}
+
+// --- Auth functions ---
+
+export async function loginParent(parentCode: string, username?: string, password?: string): Promise<LoginParentResponse> {
+  const res = await fetch(`${BASE_URL}/auth/login-parent`, {
+    method: "POST",
+    headers: { ...API_HEADERS, "Content-Type": "application/json" },
+    body: JSON.stringify({ parentCode, username, password }),
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.error || `Login failed (${res.status})`);
+  }
+  return res.json();
 }
 
 // --- Fetch functions ---
