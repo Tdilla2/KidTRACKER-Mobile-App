@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { fetchAppUsers } from "../api/kidTrackerApi";
+import { loginParent } from "../api/kidTrackerApi";
 import type { RawAppUser } from "../api/kidTrackerApi";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
@@ -37,31 +37,14 @@ export default function LoginScreen({ onLogin, onDemo }: LoginScreenProps) {
 
     setLoading(true);
     try {
-      const users = await fetchAppUsers();
-      const match = users.find(
-        (u) =>
-          u.username.toLowerCase() === username.trim().toLowerCase() &&
-          u.password === password &&
-          u.role === "parent" &&
-          u.status === "active"
-      );
+      const result = await loginParent(accessCode.trim(), username.trim(), password);
 
-      if (!match) {
-        setError("Invalid username or password. Please try again.");
-        return;
-      }
-
-      if (match.parent_code !== accessCode.trim()) {
-        setError("Invalid parent access code. Please check the code provided by your daycare.");
-        return;
-      }
-
-      if (!match.daycare_id) {
+      if (!result.user.daycare_id) {
         setError("Your account is not linked to a daycare. Please contact your daycare.");
         return;
       }
 
-      onLogin(match);
+      onLogin(result.user);
     } catch (err: any) {
       setError(err.message || "Unable to connect. Please check your internet connection.");
     } finally {
@@ -75,7 +58,7 @@ export default function LoginScreen({ onLogin, onDemo }: LoginScreenProps) {
         <div className="text-center mb-8">
           <img src="kidtracker-logo.png" alt="KidTRACKERApp" style={{ maxWidth: "12rem", width: "50%", margin: "0 auto 1rem auto", display: "block" }} />
           <h1 className="text-blue-900 mb-2">Mobile</h1>
-          <p className="text-gray-600">Welcome back! Please sign on to continue.</p>
+          <p className="text-gray-600">Welcome back! Please sign in to continue.</p>
         </div>
 
         {error && (
@@ -86,7 +69,7 @@ export default function LoginScreen({ onLogin, onDemo }: LoginScreenProps) {
 
         <Card>
           <CardHeader>
-            <CardTitle>Sign On</CardTitle>
+            <CardTitle>Sign In</CardTitle>
             <CardDescription>Enter the credentials provided by your daycare</CardDescription>
           </CardHeader>
           <CardContent>
@@ -131,7 +114,7 @@ export default function LoginScreen({ onLogin, onDemo }: LoginScreenProps) {
                 </p>
               </div>
               <Button type="submit" className="w-full bg-blue-600 hover:bg-blue-700" disabled={loading}>
-                {loading ? "Signing on..." : "Sign On"}
+                {loading ? "Signing in..." : "Sign In"}
               </Button>
             </form>
             <div className="mt-4 pt-4 border-t border-gray-200">
