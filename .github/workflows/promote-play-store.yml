@@ -58,6 +58,7 @@ jobs:
           print(f"Promoting version code(s) {version_codes} to production")
 
           # Set the production track with the same version codes
+          # Include country targeting (all countries)
           service.edits().tracks().update(
               packageName=package,
               editId=edit_id,
@@ -67,6 +68,9 @@ jobs:
                   "releases": [{
                       "versionCodes": version_codes,
                       "status": "completed",
+                      "countryTargeting": {
+                          "includeRestOfWorld": True,
+                      },
                   }],
               },
           ).execute()
