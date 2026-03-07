@@ -50,7 +50,7 @@ jobs:
 
       - name: Build release AAB
         working-directory: android
-        run: ./gradlew bundleRelease
+        run: chmod +x gradlew && ./gradlew bundleRelease
 
       - name: Deploy to Google Play (Production)
         uses: r0adkll/upload-google-play@v1
