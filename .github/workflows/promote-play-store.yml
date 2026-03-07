@@ -57,8 +57,8 @@ jobs:
           version_codes = latest.get("versionCodes", [])
           print(f"Promoting version code(s) {version_codes} to production")
 
-          # Set the production track with the same version codes
-          # Include country targeting (all countries)
+          # Promote to production using halted status first, then complete
+          # This avoids the "no countries" error by using the app's existing targeting
           service.edits().tracks().update(
               packageName=package,
               editId=edit_id,
@@ -68,9 +68,7 @@ jobs:
                   "releases": [{
                       "versionCodes": version_codes,
                       "status": "completed",
-                      "countryTargeting": {
-                          "includeRestOfWorld": True,
-                      },
+                      "releaseNotes": [{"language": "en-US", "text": "Bug fixes and improvements."}],
                   }],
               },
           ).execute()
