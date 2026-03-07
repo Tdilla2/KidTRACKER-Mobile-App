@@ -34,6 +34,21 @@ function stripCascadeLayers(css: string): string {
   return result;
 }
 
+/** Replace `import.meta.url` in JS output so it works in non-module scripts (Chrome 68 WebView). */
+function replaceImportMetaUrl(): import('vite').Plugin {
+  return {
+    name: 'replace-import-meta-url',
+    enforce: 'post',
+    apply: 'build',
+    renderChunk(code) {
+      if (code.includes('import.meta.url')) {
+        return code.replace(/import\.meta\.url/g, 'document.baseURI');
+      }
+      return null;
+    },
+  };
+}
+
 /** Strip `type="module"` and `crossorigin` from script tags so old WebViews load the bundle. */
 function stripModuleAttrs(): import('vite').Plugin {
   return {
@@ -82,11 +97,19 @@ export default defineConfig({
     // Tailwind is not being actively used – do not remove them
     react(),
     tailwindcss(),
-    ...(isCapacitor ? [cssDownlevel(), stripModuleAttrs()] : []),
+    ...(isCapacitor ? [cssDownlevel(), replaceImportMetaUrl(), stripModuleAttrs()] : []),
   ],
   build: {
     target: isCapacitor ? 'es2017' : 'esnext',
     cssMinify: 'lightningcss',
+    ...(isCapacitor && {
+      rollupOptions: {
+        output: {
+          // Inline dynamic imports so Capacitor plugins don't use import.meta.url
+          inlineDynamicImports: true,
+        },
+      },
+    }),
   },
   css: {
     lightningcss: {
