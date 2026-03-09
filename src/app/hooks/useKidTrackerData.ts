@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Browser } from "@capacitor/browser";
+import { App as CapApp } from "@capacitor/app";
 import {
   fetchChildren,
   fetchClassrooms,
@@ -295,7 +296,7 @@ export function useKidTrackerData(
       childName: child?.name ?? "",
       description: invoice.description,
       customerEmail: child?.parentEmail ?? "",
-      returnUrl: window.location.origin + window.location.pathname,
+      returnUrl: "com.kidtrackerapp.mobile://payment-complete",
     });
 
     // Store sessionId so browserFinished can verify it
@@ -339,6 +340,32 @@ export function useKidTrackerData(
           if (paid) return;
         } catch { /* ignore */ }
         await new Promise((r) => setTimeout(r, 2000));
+      }
+    });
+    return () => { listener.then((h) => h.remove()); };
+  }, []);
+
+  // Listen for deep link return from Stripe (com.kidtrackerapp.mobile://payment-complete?...)
+  useEffect(() => {
+    const listener = CapApp.addListener("appUrlOpen", async (event) => {
+      const url = new URL(event.url);
+      if (url.host !== "payment-complete") return;
+
+      const status = url.searchParams.get("stripe_status");
+      const sessionId = url.searchParams.get("session_id");
+
+      // Close the in-app browser
+      try { await Browser.close(); } catch { /* may already be closed */ }
+
+      if (status === "success" && sessionId) {
+        activeSessionRef.current = sessionId;
+        for (let i = 0; i < 5; i++) {
+          try {
+            const paid = await confirmPayment(sessionId);
+            if (paid) return;
+          } catch { /* ignore */ }
+          await new Promise((r) => setTimeout(r, 2000));
+        }
       }
     });
     return () => { listener.then((h) => h.remove()); };
