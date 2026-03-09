@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - main
+      - testing
 
 jobs:
   build-and-upload:
@@ -48,6 +49,8 @@ jobs:
 
       - name: Build release AAB
         working-directory: android
+        env:
+          VERSION_CODE: ${{ github.run_number }}
         run: chmod +x gradlew && ./gradlew bundleRelease
 
       - name: Upload AAB artifact
