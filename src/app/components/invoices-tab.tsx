@@ -61,6 +61,7 @@ export default function InvoicesTab({ child, invoices, onStartPayment, onConfirm
   const dailyRate = dailyCharge?.amount
     ?? (weeklyRate ? Math.round(weeklyRate / 5) : 0);
 
+  const [payingInvoiceId, setPayingInvoiceId] = useState<string | null>(null);
   const [payState, setPayState] = useState<"idle" | "creating" | "waiting" | "success" | "error">("idle");
   const [paySuccess, setPaySuccess] = useState<string | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -125,7 +126,9 @@ export default function InvoicesTab({ child, invoices, onStartPayment, onConfirm
 
   const paidInvoices = invoices.filter((i) => i.status.toLowerCase() === "paid");
   const allPendingInvoices = invoices.filter((i) => i.status.toLowerCase() !== "paid");
-  const pendingInvoice = allPendingInvoices[0] ?? null;
+  const overdueInvoices = allPendingInvoices.filter((i) => i.dueDate && new Date(i.dueDate) < new Date());
+  const pendingNotOverdue = allPendingInvoices.filter((i) => !i.dueDate || new Date(i.dueDate) >= new Date());
+  const [expandedOverdue, setExpandedOverdue] = useState(false);
 
   // Sort all invoices by date descending (newest first)
   const sortedInvoices = [...invoices].sort((a, b) => {
@@ -139,6 +142,7 @@ export default function InvoicesTab({ child, invoices, onStartPayment, onConfirm
   const handlePay = async (invoiceId: string) => {
     if (!onStartPayment || !onConfirmPayment) return;
 
+    setPayingInvoiceId(invoiceId);
     setPayState("creating");
     try {
       // Create session and open Stripe in browser
@@ -155,6 +159,7 @@ export default function InvoicesTab({ child, invoices, onStartPayment, onConfirm
             pollRef.current = null;
             setPayState("success");
             setPaySuccess(invoiceId);
+            setPayingInvoiceId(null);
           }
         } catch {
           // Ignore polling errors, keep trying
@@ -162,6 +167,7 @@ export default function InvoicesTab({ child, invoices, onStartPayment, onConfirm
       }, 5000);
     } catch {
       setPayState("error");
+      setPayingInvoiceId(null);
       setTimeout(() => setPayState("idle"), 3000);
     }
   };
@@ -188,20 +194,25 @@ export default function InvoicesTab({ child, invoices, onStartPayment, onConfirm
 
   // Listen for invoices changing (e.g. browserFinished triggered confirmPayment)
   useEffect(() => {
-    if (lastSessionRef.current && pendingInvoice === null) {
-      // The pending invoice was paid via browserFinished handler
-      setPayState("success");
-      setPaySuccess("auto_verified");
-      if (pollRef.current) clearInterval(pollRef.current);
-      pollRef.current = null;
-      lastSessionRef.current = null;
+    if (lastSessionRef.current && payingInvoiceId) {
+      // Check if the invoice we were paying is now paid
+      const inv = invoices.find((i) => i.id === payingInvoiceId);
+      if (inv && inv.status.toLowerCase() === "paid") {
+        setPayState("success");
+        setPaySuccess(payingInvoiceId);
+        setPayingInvoiceId(null);
+        if (pollRef.current) clearInterval(pollRef.current);
+        pollRef.current = null;
+        lastSessionRef.current = null;
+      }
     }
-  }, [invoices, pendingInvoice]);
+  }, [invoices, payingInvoiceId]);
 
   const handleCancel = () => {
     if (pollRef.current) clearInterval(pollRef.current);
     pollRef.current = null;
     lastSessionRef.current = null;
+    setPayingInvoiceId(null);
     setPayState("idle");
   };
 
@@ -272,97 +283,201 @@ export default function InvoicesTab({ child, invoices, onStartPayment, onConfirm
         </CardContent>
       </Card>
 
-      {/* Current Invoice */}
-      {pendingInvoice && payState !== "success" ? (
+      {/* Overdue Balance */}
+      {overdueInvoices.length > 0 && (
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between">
-              <CardTitle>Current Invoice</CardTitle>
-              <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-200">
-                Due Soon
+              <CardTitle>Overdue Balance</CardTitle>
+              <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200">
+                {overdueInvoices.length} Overdue
               </Badge>
             </div>
-            <CardDescription>{pendingInvoice.invoiceNumber}</CardDescription>
+            <CardDescription>
+              {overdueInvoices.length} invoice{overdueInvoices.length > 1 ? "s" : ""} past due
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="space-y-2">
-              {parseLineItems(pendingInvoice.description).length > 0 ? (
-                parseLineItems(pendingInvoice.description).map((item, i) => (
-                  <div key={i} className="flex justify-between">
-                    <span className="text-gray-600">{item.label}</span>
-                    <span className="text-gray-900">{item.amount}</span>
-                  </div>
-                ))
-              ) : (
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Tuition</span>
-                  <span className="text-gray-900">${pendingInvoice.amount.toFixed(2)}</span>
-                </div>
-              )}
-            </div>
-
-            <Separator />
-
-            <div className="flex justify-between">
-              <span className="text-gray-900">Total Due</span>
-              <span className="text-blue-600">${pendingInvoice.amount.toFixed(2)}</span>
-            </div>
-
-            <div className="pt-2">
-              <p className="text-gray-500">Due Date: {pendingInvoice.dueDate}</p>
-            </div>
-
-            {payState === "idle" && (
-              <Button
-                className="w-full bg-blue-600 hover:bg-blue-700 text-white"
-                onClick={() => handlePay(pendingInvoice.id)}
-              >
-                Pay Now
-              </Button>
-            )}
-
-            {payState === "creating" && (
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                <p className="text-blue-900 text-center text-sm">
-                  {paySuccess === null ? "Opening secure payment..." : "Verifying payment..."}
-                </p>
+            {/* Combined total */}
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+              <div className="flex justify-between items-center mb-1">
+                <span className="text-red-900 font-medium">Total Overdue</span>
+                <span className="text-red-700 text-xl font-bold">
+                  ${overdueInvoices.reduce((sum, inv) => sum + inv.amount, 0).toFixed(2)}
+                </span>
               </div>
-            )}
+              <p className="text-red-600 text-xs">
+                Oldest due: {formatDate(overdueInvoices.sort((a, b) => (a.dueDate || "").localeCompare(b.dueDate || ""))[0]?.dueDate || "")}
+              </p>
+            </div>
 
-            {payState === "waiting" && (
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-3">
-                <p className="text-blue-900 text-center text-sm font-medium">
-                  Complete payment in the browser window
-                </p>
-                <p className="text-blue-700 text-center text-xs">
-                  Already paid? Tap below to verify.
-                </p>
-                <Button
-                  className="w-full bg-green-600 hover:bg-green-700 text-white"
-                  onClick={handleCheckPayment}
-                >
-                  Check Payment Status
-                </Button>
-                <Button
-                  variant="outline"
-                  className="w-full"
-                  onClick={handleCancel}
-                >
-                  Cancel
-                </Button>
-              </div>
-            )}
+            {/* Expand to see individual invoices */}
+            <button
+              className="w-full text-sm text-gray-600 flex items-center justify-center gap-1 py-1"
+              onClick={() => setExpandedOverdue(!expandedOverdue)}
+            >
+              <span>{expandedOverdue ? "Hide" : "View"} individual invoices ({overdueInvoices.length})</span>
+              <svg className={`w-4 h-4 transition-transform ${expandedOverdue ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
 
-            {payState === "error" && (
-              <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                <p className="text-red-900 text-center text-sm">
-                  Could not initiate payment. Please try again.
-                </p>
+            {expandedOverdue && (
+              <div className="space-y-3">
+                {overdueInvoices
+                  .sort((a, b) => (a.dueDate || "").localeCompare(b.dueDate || ""))
+                  .map((invoice) => {
+                    const isThisInvoicePaying = payingInvoiceId === invoice.id;
+                    const isThisInvoicePaid = paySuccess === invoice.id;
+                    const isAnotherPaying = payingInvoiceId !== null && payingInvoiceId !== invoice.id;
+
+                    return (
+                      <div key={invoice.id} className="p-3 bg-white border border-red-100 rounded-lg">
+                        <div className="flex items-center justify-between mb-2">
+                          <div>
+                            <p className="text-gray-900 font-medium text-sm">{invoice.invoiceNumber}</p>
+                            <p className="text-red-600 text-xs">
+                              Due: {formatDate(invoice.dueDate)}
+                            </p>
+                          </div>
+                          <p className="text-gray-900 font-semibold">${invoice.amount.toFixed(2)}</p>
+                        </div>
+
+                        {invoice.description && (
+                          <div className="mb-2 space-y-1">
+                            {parseLineItems(invoice.description).map((item, i) => (
+                              <div key={i} className="flex justify-between text-xs">
+                                <span className="text-gray-500">{item.label}</span>
+                                <span className="text-gray-600">{item.amount}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        {isThisInvoicePaid ? (
+                          <div className="bg-green-50 border border-green-200 rounded-lg p-2">
+                            <p className="text-green-700 text-center text-sm">Payment successful!</p>
+                          </div>
+                        ) : isThisInvoicePaying && payState === "creating" ? (
+                          <div className="bg-blue-50 border border-blue-200 rounded-lg p-2">
+                            <p className="text-blue-900 text-center text-sm">Opening secure payment...</p>
+                          </div>
+                        ) : isThisInvoicePaying && payState === "waiting" ? (
+                          <div className="bg-blue-50 border border-blue-200 rounded-lg p-2 space-y-2">
+                            <p className="text-blue-900 text-center text-sm font-medium">Complete payment in browser</p>
+                            <Button className="w-full bg-green-600 hover:bg-green-700 text-white text-sm h-8" onClick={handleCheckPayment}>
+                              Check Payment Status
+                            </Button>
+                            <Button variant="outline" className="w-full text-sm h-8" onClick={handleCancel}>
+                              Cancel
+                            </Button>
+                          </div>
+                        ) : isThisInvoicePaying && payState === "error" ? (
+                          <div className="bg-red-50 border border-red-200 rounded-lg p-2">
+                            <p className="text-red-900 text-center text-sm">Payment failed. Try again.</p>
+                          </div>
+                        ) : (
+                          <Button
+                            className="w-full bg-red-600 hover:bg-red-700 text-white text-sm h-8"
+                            onClick={() => handlePay(invoice.id)}
+                            disabled={isAnotherPaying}
+                          >
+                            Pay ${invoice.amount.toFixed(2)}
+                          </Button>
+                        )}
+                      </div>
+                    );
+                  })}
               </div>
             )}
           </CardContent>
         </Card>
-      ) : (
+      )}
+
+      {/* Pending Invoices (not yet due) */}
+      {pendingNotOverdue.length > 0 && pendingNotOverdue.map((invoice) => {
+        const isThisInvoicePaying = payingInvoiceId === invoice.id;
+        const isThisInvoicePaid = paySuccess === invoice.id;
+        const isAnotherPaying = payingInvoiceId !== null && payingInvoiceId !== invoice.id;
+
+        return (
+          <Card key={invoice.id}>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle>Upcoming Invoice</CardTitle>
+                <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-200">
+                  Due Soon
+                </Badge>
+              </div>
+              <CardDescription>{invoice.invoiceNumber}</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                {parseLineItems(invoice.description).length > 0 ? (
+                  parseLineItems(invoice.description).map((item, i) => (
+                    <div key={i} className="flex justify-between">
+                      <span className="text-gray-600">{item.label}</span>
+                      <span className="text-gray-900">{item.amount}</span>
+                    </div>
+                  ))
+                ) : (
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Tuition</span>
+                    <span className="text-gray-900">${invoice.amount.toFixed(2)}</span>
+                  </div>
+                )}
+              </div>
+
+              <Separator />
+
+              <div className="flex justify-between">
+                <span className="text-gray-900">Total Due</span>
+                <span className="text-blue-600">${invoice.amount.toFixed(2)}</span>
+              </div>
+
+              <div className="pt-2">
+                <p className="text-gray-500">Due Date: {formatDate(invoice.dueDate)}</p>
+              </div>
+
+              {isThisInvoicePaid ? (
+                <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+                  <p className="text-green-700 text-center text-sm">Payment successful!</p>
+                </div>
+              ) : isThisInvoicePaying && payState === "creating" ? (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <p className="text-blue-900 text-center text-sm">Opening secure payment...</p>
+                </div>
+              ) : isThisInvoicePaying && payState === "waiting" ? (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-3">
+                  <p className="text-blue-900 text-center text-sm font-medium">Complete payment in the browser window</p>
+                  <p className="text-blue-700 text-center text-xs">Already paid? Tap below to verify.</p>
+                  <Button className="w-full bg-green-600 hover:bg-green-700 text-white" onClick={handleCheckPayment}>
+                    Check Payment Status
+                  </Button>
+                  <Button variant="outline" className="w-full" onClick={handleCancel}>
+                    Cancel
+                  </Button>
+                </div>
+              ) : isThisInvoicePaying && payState === "error" ? (
+                <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                  <p className="text-red-900 text-center text-sm">Could not initiate payment. Please try again.</p>
+                </div>
+              ) : (
+                <Button
+                  className="w-full bg-blue-600 hover:bg-blue-700 text-white"
+                  onClick={() => handlePay(invoice.id)}
+                  disabled={isAnotherPaying}
+                >
+                  Pay Now
+                </Button>
+              )}
+            </CardContent>
+          </Card>
+        );
+      })}
+
+      {/* All paid */}
+      {allPendingInvoices.length === 0 && (
         <Card>
           <CardContent className="pt-6">
             <div className="text-center py-6">
